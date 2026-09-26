@@ -1,0 +1,14 @@
+# PyCharm
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Poetry environment
+.venv/
+
+# Тестовое покрытие и кэш
+.pytest_cache/
+
+database.json

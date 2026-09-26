@@ -1,68 +1,80 @@
-from requests import get
+import json
+import re
+from aeroplane import Aeroplane
+from connector import JSONConnector
+from console_ui import run_opensky_menu
 
 
-class APIAdapter:
-    def __init__(self) -> None:
-        self.openstreetmap_url = 'https://openstreetmap.org'
-        # ИСПРАВЛЕНО: Убран знак "?" в конце URL
-        self.opensky_url = 'https://opensky-network.org'
-        self.aeroplanes = None
+def load_and_parse_task_file(file_path: str):
+    print(f"--- Чтение и очистка файла задания: {file_path} ---")
 
-    def get_aeroplanes(self, country: str) -> None:
-        # Headers c user-agent — обязательный параметр при запросе к nominatim.openstreetmap.
-        headers_nominatim = {
-            'User-Agent': 'test-app/1.0',
-        }
+    try:
+        # Читаем файл как обычный текстовый документ
+        with open(file_path, "r", encoding="utf-8") as file:
+            raw_content = file.read()
 
-        params_nominatim = {
-            'country': country,
-            'format': 'json',
-            'limit': 1,
-        }
+        # Удаляем все комментарии вида // ...до конца строки и все запятые перед скобками
+        clean_content = re.sub(re.compile(r"//.*?\n"), "\n", raw_content)
 
-        response = get(url=self.openstreetmap_url, params=params_nominatim, headers=headers_nominatim)
-        data = response.json()
+        # Парсим очищенный от // текст в стандартный словарь Python
+        data = json.loads(clean_content)
+        states = data.get("states", [])
 
-        # Базовая проверка: нашла ли Nominatim такую страну
-        if not data:
-            print(f"Страна '{country}' не найдена!")
-            return
+        print(f"Найдено самолетов в файле: {len(states)}\n")
 
-        geo_coordinates = data[0].get('boundingbox')
+        # Список для хранения созданных ООП-объектов
+        aeroplanes_objects = []
 
-        # ИСПРАВЛЕНО: Преобразуем строки координат в числа (float)
-        params = {
-            'lamin': float(geo_coordinates[0]),
-            'lamax': float(geo_coordinates[1]),
-            'lomin': float(geo_coordinates[2]),
-            'lomax': float(geo_coordinates[3]),
-        }
+        # Проходим по массиву и создаем объекты класса Aeroplane
+        for flight in states:
+            plane_object = Aeroplane(
+                icao24=flight[0],
+                callsign=flight[1],
+                origin_country=flight[2],
+                altitude=flight[7],  # baro_altitude из вашего файла
+                velocity=flight[9]  # velocity из вашего файла
+            )
+            aeroplanes_objects.append(plane_object)
 
-        # Делаем запрос к OpenSky
-        response = get(url=self.opensky_url, params=params)
+        return aeroplanes_objects
 
-        if response.status_code != 200:
-            print(f"Ошибка OpenSky API: {response.status_code}")
-            return
-
-        self.aeroplanes = response.json()
-
-        # ДОБАВЛЕНО: Красивый вывод результата в консоль
-        states = self.aeroplanes.get("states")
-        if not states:
-            print(f"В воздушном пространстве страны {country} сейчас нет самолетов.")
-        else:
-            print(f"Успешно! Найдено самолетов над {country}: {len(states)}\n")
-            print(f"{'Позывной':<10} | {'Страна рег.':<15} | {'Высота (м)':<10} | {'Скорость (м/с)':<10}")
-            print("-" * 60)
-            for flight in states[:10]:  # Выведем первые 10 для теста
-                callsign = flight[1].strip() if flight[1] else "N/A"
-                origin_country = flight[2]
-                altitude = flight[7] if flight[7] is not None else "Н/Д"
-                velocity = flight[9] if flight[9] is not None else "Н/Д"
-                print(f"{callsign:<10} | {origin_country:<15} | {altitude:<10} | {velocity:<10}")
+    except Exception as e:
+        print(f"Ошибка при обработке файла: {e}")
+        return []
 
 
-# Запуск
-api = APIAdapter()
-api.get_aeroplanes('Canada')
+if __name__ == "__main__":
+    import os
+
+    # Автоматически определяет папку, где лежит сам файл main.py (то есть src)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Находит файл в корневой папке относительно папки src
+    task_file = os.path.join(current_dir, "../opensky-network.response.json")
+
+    # Чтение -> очистка от // -> создание объектов
+    planes = load_and_parse_task_file(task_file)
+
+    if planes:
+        db = JSONConnector("../database.json")
+
+        print("--- 1. Сохранение объектов в базу данных JSON ---")
+        for plane in planes:
+            db.add_aeroplane(plane)
+        try:
+            run_opensky_menu(planes)
+        except KeyboardInterrupt:
+            print("\n\n[Программа принудительно остановлена пользователем]")
+
+        print("\n--- 2. Поиск в базе данных по критерию (Страна: Switzerland) ---")
+        search_criteria = {"origin_country": "Switzerland"}
+        found_planes = db.get_aeroplanes_by_criteria(search_criteria)
+
+        for p in found_planes:
+            print(f"Найдено в базе -> {p}")
+
+        print("\n--- 3. Удаление объектов из базы по критерию (Позывной: SWR438A) ---")
+        delete_criteria = {"callsign": "SWR438A"}
+        db.delete_aeroplanes(delete_criteria)
+
+        # Проверяем, пуста ли база после удаления
+        print(f"Осталось самолетов в Швейцарии: {len(db.get_aeroplanes_by_criteria(search_criteria))}")

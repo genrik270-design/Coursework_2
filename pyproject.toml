@@ -1,0 +1,20 @@
+[project]
+name = "coursework-2"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "tatyana_goncharova",email = "genrik70@yandex.ru"}
+]
+requires-python = ">=3.14"
+dependencies = [
+    "requests (>=2.34.2,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = "E501"
