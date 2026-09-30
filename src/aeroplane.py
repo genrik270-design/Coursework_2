@@ -3,12 +3,14 @@ class Aeroplane:
         self.icao24 = icao24
         self.callsign = callsign if callsign and callsign.strip() else "Н/Д"
         self.origin_country = origin_country if origin_country else "Н/Д"
-
+        # Создаем приватное поле по умолчанию
+        self._altitude = 0.0
+        self._velocity = 0.0
         # Запись через сеттеры для прохождения валидации
         self.altitude = altitude
         self.velocity = velocity
 
-    # --- ИНКАПСУЛЯЦИЯ И ВАЛИДАЦИЯ ВЫСОТЫ ---
+    # --- ИНКАПСУЛЯЦИЯ И ВАЛИДАЦИЯ ВЫСОТЫ И СКОРОСТИ---
     @property
     def altitude(self):
         return self._altitude
@@ -26,7 +28,6 @@ class Aeroplane:
             raise ValueError("Высота не может быть отрицательной!")
         self._altitude = float(value)
 
-    # --- ИНКАПСУЛЯЦИЯ И ВАЛИДАЦИЯ СКОРОСТИ ---
     @property
     def velocity(self):
         return self._velocity
@@ -34,9 +35,8 @@ class Aeroplane:
     @velocity.setter
     def velocity(self, value):
         if value is None:
-            self._velocity = 0
+            self._velocity = 0.0
             return
-        # Валидация: проверка типа и диапазона
         if not isinstance(value, (int, float)):
             raise ValueError("Скорость должна быть числом!")
         if value < 0:

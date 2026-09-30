@@ -1,4 +1,5 @@
 from aeroplane import Aeroplane
+import app
 
 
 def run_opensky_menu(planes: list[Aeroplane]):
@@ -78,7 +79,7 @@ def _display_table(planes_list: list[Aeroplane], title: str):
     """Внутренняя вспомогательная функция для красивой отрисовки таблицы"""
     print(f"\n{'=' * 25} {title} {'=' * 25}")
     print(
-        f"{"ICAO24":<10} | {"Позывной":<10} | {"Страна регистрации":<20} | {"Высота (м)":<12} | {"Скорость (м/с)":<14}")
+        f"{'ICAO24':<10} | {'Позывной':<10} | {'Страна регистрации':<20} | {'Высота (м)':<12} | {'Скорость (м/с)':<14}")
     print("-" * 75)
     for p in planes_list:
         print(
