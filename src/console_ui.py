@@ -1,5 +1,4 @@
 from aeroplane import Aeroplane
-import app
 
 
 def run_opensky_menu(planes: list[Aeroplane]):

@@ -1,51 +1,11 @@
-import json
-import re
-from aeroplane import Aeroplane
+# main.py
+import os
 from connector import JSONConnector
 from console_ui import run_opensky_menu
-
-
-def load_and_parse_task_file(file_path: str):
-    print(f"--- Чтение и очистка файла задания: {file_path} ---")
-
-    try:
-        # Читаем файл как обычный текстовый документ
-        with open(file_path, "r", encoding="utf-8") as file:
-            raw_content = file.read()
-
-        # Удаляем все комментарии вида // ...до конца строки и все запятые перед скобками
-        clean_content = re.sub(re.compile(r"//.*?\n"), "\n", raw_content)
-
-        # Парси м очищенный от // текст в стандартный словарь Python
-        data = json.loads(clean_content)
-        states = data.get("states", [])
-
-        print(f"Найдено самолетов в файле: {len(states)}\n")
-
-        # Список для хранения созданных ООП-объектов
-        aeroplanes_objects = []
-
-        # Проходим по массиву и создаем объекты класса Aeroplane
-        for flight in states:
-            plane_object = Aeroplane(
-                icao24=flight[0],
-                callsign=flight[1],
-                origin_country=flight[2],
-                altitude=flight[7],  # bar_altitude из вашего файла
-                velocity=flight[9]  # velocity из вашего файла
-            )
-            aeroplanes_objects.append(plane_object)
-
-        return aeroplanes_objects
-
-    except Exception as e:
-        print(f"Ошибка при обработке файла: {e}")
-        return []
+from app import APIAdapter  # 🎯 Импортируем наш новый класс-адаптер
 
 
 if __name__ == "__main__":
-    import os
-
     # Автоматически определяет папку, где лежит сам файл main.py (то есть src)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Находит файл в корневой папке относительно папки src
@@ -54,8 +14,9 @@ if __name__ == "__main__":
     # Инициализируем коннектор базы данных
     db = JSONConnector(os.path.join(current_dir, "../database.json"))
 
-    # Чтение -> очистка от // -> создание объектов из исходного файла
-    planes = load_and_parse_task_file(task_file)
+    # 🎯 СОЗДАЕМ ЭКЗЕМПЛЯР КЛАССА И ВЫЗЫВАЕМ ЕГО МЕТОД (Чистый ООП стиль)
+    adapter = APIAdapter(task_file)
+    planes = adapter.load_and_parse()
 
     # Если в файле задания что-то нашлось, сначала сохраняем это в базу
     if planes:
