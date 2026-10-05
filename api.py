@@ -1,5 +1,8 @@
+# api.py
 from abc import ABC, abstractmethod
 from requests import get
+from aeroplane import Aeroplane  # <-- Импортируем класс самолета!
+
 
 # Создаем абстрактный класс
 class BaseAPIAdapter(ABC):
@@ -10,22 +13,24 @@ class BaseAPIAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_aeroplanes(self, country: str) -> None:
+    def get_aeroplanes(self, country: str) -> list[Aeroplane]:
         """АМ для получения данных о самолетах"""
         pass
 
-# Класс наследуемый от абстрактного
 
+# Класс наследуемый от абстрактного
 class APIAdapter(BaseAPIAdapter):
     def __init__(self) -> None:
-        self.openstreetmap_url = "https://openstreetmap.org"
-        self.opensky_url = "https://opensky_network.org"
+        # Указываем URL OpenStreetMap и OpenSky Network
+        self.openstreetmap_url = "https://nominatim.openstreetmap.org/search"
+        self.opensky_url = "https://opensky-network.org/api/states/all"
         self.aeroplanes = None
 
-    def get_country_coordinates (self, country: str) -> list:
+    def get_country_coordinates(self, country: str) -> list:
         """Подключаемся к API Nominatim и получаем координаты страны"""
         headers_nominatim = {
-            "User-Agent": "coursework-aviation-app/1.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+,
         }
         params_nominatim = {
             "country": country,
@@ -33,50 +38,70 @@ class APIAdapter(BaseAPIAdapter):
             "limit": 1,
         }
 
-        response = get(url=self.openstreetmap_url, params=params_nominatim, headers=headers_nominatim)
-        data = response.json()
-
-        if not data:
-            print(f"Страна '{country}' в базе не найдена")
+        try:
+            response = get(url=self.openstreetmap_url, params=params_nominatim, headers=headers_nominatim)
+            data = response.json()
+        except Exception as e:
+            print(f"[Ошибка сети Nominatim]: {e}")
             return []
 
-        # Возвращаем координаты
-        return data [0].get("boundingbox")
+        if not data:
+            print(f"Страна '{country}' в географической базе Nominatim не найдена.")
+            return []
 
-    def get_aeroplanes(self, country: str) -> None:
-        """Подключается к API OpenSky по данным координатам"""
+        # Возвращаем координаты boundingbox
+        return data[0].get("boundingbox")
+
+    def get_aeroplanes(self, country: str) -> list[Aeroplane]:
+        """Подключается к API OpenSky по данным координатам и возвращает список объектов Aeroplane"""
         geo_coordinates = self.get_country_coordinates(country)
         if not geo_coordinates:
-            return
+            return []
+
         # Преобразуем строки координат в числа
         params = {
-            "lamin": float (geo_coordinates [0]),
-            "lamax": float (geo_coordinates [1]),
-            "lomin": float (geo_coordinates [2]),
-            "lomax": float (geo_coordinates [3]),
+            "lamin": float(geo_coordinates[0]),
+            "lamax": float(geo_coordinates[1]),
+            "lomin": float(geo_coordinates[2]),
+            "lomax": float(geo_coordinates[3]),
         }
-        response = get(url=self.opensky_url, params=params)
+
+        try:
+            response = get(url=self.opensky_url, params=params)
+        except Exception as e:
+            print(f"[Ошибка сети OpenSky]: {e}")
+            return []
 
         if response.status_code != 200:
             print(f"Ошибка OpenSky API: {response.status_code}")
-            return
+            return []
 
         self.aeroplanes = response.json()
         states = self.aeroplanes.get("states")
 
-        # Выводим результат
         if not states:
-            print(f"В воздушном пространстве страны {country} нет самолетов.")
-        else:
-            print (f"Найдено самолетов над страной {country}: {len(states)}\n")
-            print(f"{'Позывной': < 10} | {'Страна регистрации': <20} | {'Высота (м)': <10 } / {'Скорость (м/с)': <15}")
-            print("-" * 65)
+            print(f"В воздушном пространстве страны {country} сейчас нет активных самолетов.")
+            return []
 
-            for flight in states[:10]:  # Выводим первые 10 самолетов для теста
-                callsign = flight[1].strip() if flight[1] else "Н/Д"
-                origin_country = flight[2]
-                altitude = flight[7] if flight[7] is not None else "Н/Д"
-                velocity = flight[9] if flight[9] is not None else "Н/Д"
+        # Создаем список ООП-объектов Aeroplane
+        aeroplanes_objects = []
+        for flight in states:
+            # Защита по высоте: проверяем None и отсекаем отрицательные числа
+            raw_alt = flight[7] if flight[7] is not None else 0.0
+            safe_altitude = float(raw_alt) if float(raw_alt) >= 0 else 0.0
 
-                print(f"{callsign:<10} | {origin_country:<20} | {altitude:<10} | {velocity:<15}")
+            # Защита по скорости: проверяем None и отсекаем отрицательные числа
+            raw_vel = flight[9] if flight[9] is not None else 0.0
+            safe_velocity = float(raw_vel) if float(raw_vel) >= 0 else 0.0
 
+            plane_object = Aeroplane(
+                icao24=flight[0],
+                callsign=flight[1].strip() if flight[1] else "Н/Д",
+                origin_country=flight[2],
+                altitude=safe_altitude,
+                velocity=safe_velocity
+            )
+            aeroplanes_objects.append(plane_object)
+        aeroplanes_objects.append(plane_object)
+
+        return aeroplanes_objects
