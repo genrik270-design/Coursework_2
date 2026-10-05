@@ -2,7 +2,7 @@ from aeroplane import Aeroplane
 
 
 def filter_by_country(planes: list[Aeroplane], country_name: str) -> list[Aeroplane]:
-    """Фильтрация самолетов по стране регистрации (регистронезависимая)"""
+    """Фильтрация самолетов по стране регистрации"""
     return [p for p in planes if p.origin_country.lower() == country_name.lower().strip()]
 
 
